@@ -441,7 +441,7 @@ header {
       <div class="stat-tile"><div class="stat-n" id="s-up">—</div><div class="stat-l">Upcoming launches</div></div>
       <div class="stat-tile"><div class="stat-n" id="s-week">—</div><div class="stat-l">Next 7 days</div></div>
       <div class="stat-tile"><div class="stat-n" id="s-crew">—</div><div class="stat-l">People in space</div></div>
-      <div class="stat-tile"><div class="stat-n" id="s-spd">—</div><div class="stat-l">ISS speed km/h</div></div>
+      <div class="stat-tile"><div class="stat-n" id="s-spd">—</div><div class="stat-l">ISS speed mph</div></div>
     </div>
 
     <div class="grid">
@@ -655,12 +655,13 @@ async function fetchISS(){
     const r=await fetch('https://api.wheretheiss.at/v1/satellites/25544');
     if(!r.ok) return;
     const d=await r.json();
-    const lat=+d.latitude, lon=+d.longitude, alt=+d.altitude, kmh=+d.velocity;   // velocity is km/h
+    const KM_MI=0.621371;   // API reports km and km/h; display imperial
+    const lat=+d.latitude, lon=+d.longitude, alt=+d.altitude*KM_MI, mph=+d.velocity*KM_MI;
     $('iss-lat').innerHTML=`${Math.abs(lat).toFixed(2)}<span class="iss-tu">°${lat>=0?'N':'S'}</span>`;
     $('iss-lon').innerHTML=`${Math.abs(lon).toFixed(2)}<span class="iss-tu">°${lon>=0?'E':'W'}</span>`;
-    $('iss-alt').innerHTML=`${alt.toFixed(1)}<span class="iss-tu">km</span>`;
-    $('iss-spd').innerHTML=`${(kmh/3600).toFixed(2)}<span class="iss-tu">km/s</span>`;
-    $('s-spd').textContent=Math.round(kmh).toLocaleString();
+    $('iss-alt').innerHTML=`${alt.toFixed(1)}<span class="iss-tu">mi</span>`;
+    $('iss-spd').innerHTML=`${(mph/3600).toFixed(2)}<span class="iss-tu">mi/s</span>`;
+    $('s-spd').textContent=Math.round(mph).toLocaleString();
 
     const x=mx(lon), y=my(lat);
     for(const id of ['iss-dot','iss-ring']){ $(id).setAttribute('cx',x.toFixed(1)); $(id).setAttribute('cy',y.toFixed(1)); }
