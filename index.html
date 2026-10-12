@@ -82,9 +82,9 @@ header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 24px 12px;
   border-bottom: 1px solid var(--border);
-  background: rgba(3,6,15,0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* solid, no backdrop-filter: nothing scrolls under the header, and on iOS
+     the blur makes the gradient wordmark render at low resolution */
+  background: var(--bg);
 }
 
 .wordmark { font-family: var(--disp); font-size: 28px; letter-spacing: 0.12em;
