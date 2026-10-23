@@ -71,7 +71,6 @@ button, input { font: inherit; color: inherit; }
   position: relative; z-index: 1;
   display: flex; flex-direction: column;
   height: 100vh; height: 100dvh;
-  padding-top: var(--sat);
   padding-left: var(--sal);
   padding-right: var(--sar);
 }
@@ -80,7 +79,9 @@ button, input { font: inherit; color: inherit; }
 header {
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 24px 12px;
+  /* the header's own background fills the Dynamic Island / status bar area,
+     so iOS tints it solid instead of blurring the wordmark beneath it */
+  padding: calc(14px + var(--sat)) 24px 12px;
   border-bottom: 1px solid var(--border);
   /* solid, no backdrop-filter: nothing scrolls under the header, and on iOS
      the blur makes the gradient wordmark render at low resolution */
@@ -380,7 +381,7 @@ header {
 }
 
 @media (max-width:768px) {
-  header { padding: 10px 16px 8px; }
+  header { padding: calc(12px + var(--sat)) 16px 8px; }
   #local-clock { display:none; }
   .wordmark { font-size: 24px; }
 
