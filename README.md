@@ -70,7 +70,7 @@ The page also saves these in `localStorage`:
 
 - `orbital.isstrack`: the recent ISS ground track, so the trail survives reloads
 
-These choices are deliberately not saved, so every visit starts on **USA** for Next Launch, Upcoming and Recent, and on the Upcoming view. Switch to All or another country at any time.
+The All/USA, region and Upcoming/Recent choices are deliberately not saved, so every visit starts on **USA** for Next Launch, Upcoming and Recent, and on the Upcoming view. Switch to All or another country at any time.
 
 ## License
 
