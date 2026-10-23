@@ -43,11 +43,12 @@ python3 -m http.server 8765
 
 ### Rate limiting and caching
 
-A full launch refresh takes about 4 requests (100 launches per page). To stay under the 15-per-hour limit:
+The 15-per-hour limit is per network (IP address), so every device on the same Wi-Fi shares it. To stay under it:
 
-- Results are cached in `localStorage` (`orbital.launches.v2`) for **30 minutes** and shared across tabs.
+- Only the first page (the next 100 launches) comes from production; later pages come from the dev mirror. A full refresh costs **one** request.
+- Results are cached in `localStorage` (`orbital.launches.v2`) for **30 minutes** and shared across tabs. Each browser and home-screen app has its own cache.
 - If the limit is hit partway through a refresh, the pages already fetched are merged with the cached data, and the rest is filled from the dev mirror.
-- If nothing is available at all, the dashboard falls back to the dev mirror entirely.
+- If production is rate-limited and there's no fresh cache, the dashboard shows dev-mirror data and asks the API's `api-throttle` endpoint (free to call) when the quota frees up, then retries production at that moment.
 - Recent launches cost one extra request, made only the first time the Recent view is opened. They're cached separately (`orbital.past.v1`) for **2 hours** and fall back to the dev mirror if rate-limited.
 
 The header badge shows where the data came from:

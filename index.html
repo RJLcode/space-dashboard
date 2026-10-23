@@ -740,8 +740,10 @@ async function fetchCrew(){
 }
 
 /* ── LAUNCH DATA ───────────────────────────────────── */
-// Launch Library 2 free tier allows 15 requests/hour. All ~370 upcoming launches
-// take ~4 pages, so results are cached and refreshed at most every 30 min.
+// Launch Library 2 free tier allows 15 requests/hour per network, shared by every
+// device on it. Only the first page (the next 100 launches) comes from production;
+// the far-future tail comes from the dev mirror, so a refresh costs one request.
+// Results are cached and refreshed at most every 30 min.
 const LL_PROD='https://ll.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net&limit=100';
 const LL_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net&limit=100';
 const CACHE_KEY='orbital.launches.v2', TTL=30*60e3;
@@ -784,6 +786,8 @@ function normalize(l){
 
 let launches=[], meta={updated:0, source:'', total:0, partial:false};
 
+const toDev=u=>u.replace('//ll.thespacedevs.com','//lldev.thespacedevs.com');
+
 async function fetchAll(base, offset=0){
   let url=offset?`${base}&offset=${offset}`:base, out=[], total=0;
   const progressive=!launches.length;
@@ -793,7 +797,7 @@ async function fetchAll(base, offset=0){
     if(!r.ok) { const e=new Error('http '+r.status); e.partial=out; e.total=total; throw e; }
     const d=await r.json();
     total=d.count; out=out.concat(d.results||[]);
-    url=d.next;
+    url=d.next && toDev(d.next);
     // paint progressively on the first uncached load
     if(progressive && url) { apply(out.map(normalize), {updated:Date.now(), source:'live', total, partial:!!url}); }
   }
@@ -805,10 +809,16 @@ function apply(list, m){
   renderAll();
 }
 
-async function loadLaunches(force=false){
+// startup and the tab-visible event can both ask at once; share one fetch
+let launchesInFlight=null;
+function loadLaunches(force=false){
+  return launchesInFlight ??= doLoadLaunches(force).finally(()=>{ launchesInFlight=null; });
+}
+async function doLoadLaunches(force){
   const cached=store.get(CACHE_KEY);
   if(cached?.results?.length && !launches.length) apply(cached.results, {...cached.meta, source:cached.meta.source||'cache'});
-  if(!force && cached && Date.now()-cached.meta.updated < TTL) { scheduleNext(TTL-(Date.now()-cached.meta.updated)); return; }
+  // mirror-only data is kept to paint instantly, but production is retried every load
+  if(!force && cached && cached.meta.source!=='mirror' && Date.now()-cached.meta.updated < TTL) { scheduleNext(TTL-(Date.now()-cached.meta.updated)); return; }
 
   try {
     const {results,total}=await fetchAll(LL_PROD);
@@ -832,29 +842,35 @@ async function loadLaunches(force=false){
       const m={updated:Date.now(), source:'live', total:e.total, partial: merged.length<e.total};
       if(!m.partial) store.set(CACHE_KEY,{results:merged, meta:m});
       apply(merged,m);
-    } else if(old.length && force && await tryMirror()){
-      // manual refresh hit the rate limit: mirror data beats a stale cache
+    } else if(old.length && (force || cached.meta.source==='mirror') && await tryMirror()){
+      // rate-limited: fresh mirror data beats a stale cache
     } else if(old.length){
       apply(old,{...cached.meta, source:'cache', rateLimited:true});
-    } else {
+    } else if(!await tryMirror()){
       // last resort: dev mirror (not rate limited, may lag a little)
-      try {
-        const {results,total}=await fetchAll(LL_DEV);
-        apply(results.map(normalize),{updated:Date.now(), source:'mirror', total, partial:false});
-      } catch(e2){
-        const got2=(e2.partial||[]).map(normalize);
-        if(got2.length) apply(got2,{updated:Date.now(), source:'mirror', total:e2.total, partial:true});
-        else showLaunchError();
-      }
+      showLaunchError();
     }
-    scheduleNext(10*60e3);
+    // go back to production as soon as this network's hourly quota frees up
+    scheduleNext(await quotaWait() ?? 10*60e3);
   }
 }
 async function tryMirror(){
   try { const {results,total}=await fetchAll(LL_DEV);
     if(!results.length) return false;
-    apply(results.map(normalize),{updated:Date.now(), source:'mirror', total, partial:false}); return true;
-  } catch { return false; }
+    const list=results.map(normalize), m={updated:Date.now(), source:'mirror', total, partial:false};
+    store.set(CACHE_KEY,{results:list, meta:m});
+    apply(list,m); return true;
+  } catch(e){
+    const got=(e.partial||[]).map(normalize);
+    if(got.length) apply(got,{updated:Date.now(), source:'mirror', total:e.total, partial:true});
+    return got.length>0;
+  }
+}
+// ms until production accepts requests again (this endpoint doesn't use up the quota)
+async function quotaWait(){
+  try { const d=await (await fetch('https://ll.thespacedevs.com/2.2.0/api-throttle/')).json();
+    return d.current_use<d.your_request_limit ? 60e3 : (d.next_use_secs+5)*1e3;
+  } catch { return null; }
 }
 
 let refreshing=false;
@@ -862,7 +878,7 @@ async function refreshAll(){
   if(refreshing) return;
   refreshing=true;
   const pill=$('live-pill'); pill.classList.add('busy'); pill.disabled=true;
-  try { await Promise.allSettled([loadLaunches(true), fetchISS(), fetchCrew()]); }
+  try { await Promise.allSettled([loadLaunches(true), fetchISS(), fetchCrew(), mode==='past' && loadPast(true)]); }
   finally { refreshing=false; pill.classList.remove('busy'); pill.disabled=false; setPill(); }
 }
 $('live-pill').addEventListener('click', refreshAll);
@@ -877,10 +893,10 @@ const PAST_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/previous/?mode=list
 const PAST_KEY='orbital.past.v1', PAST_TTL=2*60*60e3;
 let past=[], pastMeta={updated:0, source:''}, pastLoading=false, pastError=false;
 
-async function loadPast(){
+async function loadPast(force=false){
   const cached=store.get(PAST_KEY);
   if(cached?.results?.length && !past.length){ past=cached.results; pastMeta={...cached.meta, source:'cache'}; }
-  if(pastLoading || (cached && Date.now()-cached.meta.updated < PAST_TTL)) return;
+  if(pastLoading || (!force && cached && Date.now()-cached.meta.updated < PAST_TTL)) return;
   pastLoading=true; pastError=false;
   for(const [url,source] of [[PAST_PROD,'live'],[PAST_DEV,'mirror']]){
     try {
