@@ -14,7 +14,9 @@
 
 <!-- iOS Webapp -->
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- opaque bar: with black-translucent, iOS dims and blurs the header under the
+     status bar and sizes the viewport one status-bar height short -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="ORBITAL">
 <meta name="theme-color" content="#03060f">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%2303060f'/><text y='120' x='90' text-anchor='middle' font-size='100'>🛸</text></svg>">
@@ -23,12 +25,20 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <script>
-/* Home-screen app height. iOS 26 reports innerHeight / 100dvh one status-bar
-   height short of the screen in standalone mode, so the dashboard ended above
-   the bottom edge. A standalone app always fills the screen, so use that. */
+/* Home-screen app height. When the page draws under the status bar, iOS 26
+   reports innerHeight / 100dvh one status-bar height short of the screen, so
+   the dashboard ended above the bottom edge. Only then, size it to the screen. */
+function underStatusBar(){
+  const p = document.createElement('div');
+  p.style.cssText = 'position:absolute;visibility:hidden;padding-top:env(safe-area-inset-top)';
+  document.documentElement.appendChild(p);
+  const top = parseFloat(getComputedStyle(p).paddingTop) || 0;
+  p.remove();
+  return top > 0;
+}
 function appHeight(){
   const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-  if (!standalone) { document.documentElement.style.removeProperty('--app-h'); return innerHeight; }
+  if (!standalone || !underStatusBar()) { document.documentElement.style.removeProperty('--app-h'); return innerHeight; }
   const sw = screen.width, sh = screen.height;
   const full = innerWidth > innerHeight ? Math.min(sw, sh) : Math.max(sw, sh);
   const h = Math.max(full, innerHeight);
@@ -66,8 +76,9 @@ addEventListener('orientationchange', () => setTimeout(appHeight, 300));
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* iOS 26 home-screen apps size the viewport one status-bar height short of
-   the screen, leaving an unpainted strip at the bottom; this extends it */
+/* iOS 26 home-screen apps drawn under the status bar size the viewport one
+   status-bar height short, leaving an unpainted strip at the bottom; this
+   extends it (--sat is 0 with the opaque status bar) */
 html { background: var(--bg); }
 @media (display-mode: standalone) { html { min-height: calc(100% + var(--sat)); } }
 
@@ -391,7 +402,8 @@ header {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid rgba(80,140,255,0.2);
-  padding: 6px 0 calc(6px + var(--sab));
+  /* the tab buttons already pad 6px, so tuck them closer to the home indicator */
+  padding: 6px 0 max(6px, calc(var(--sab) - 10px));
 }
 .nav-tabs { display:flex; justify-content:space-around; }
 .ntab { display:flex; flex-direction:column; align-items:center; gap:3px;
