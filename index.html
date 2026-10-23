@@ -88,21 +88,26 @@ header {
   background: var(--bg);
 }
 
-.wordmark { font-family: var(--disp); font-size: 28px; letter-spacing: 0.12em;
-  background: linear-gradient(110deg, var(--blue) 0%, #9b7aff 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; line-height: 1; }
+/* SVG, not background-clip:text: iOS Safari rasterizes clipped gradient text
+   at low resolution, so the wordmark looked blurry on phones */
+.wordmark { display:block; font-size: 28px; width: 3.18em; height: 1em; overflow: visible; }
+.wordmark text { font-family: var(--disp); font-size: 100px; letter-spacing: 12px; }
 .wordmark-sub { font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
   color: var(--muted); text-transform: uppercase; margin-top: 3px; }
 
 .header-right { display:flex; align-items:center; gap:14px; }
 
-.live-pill { display:flex; align-items:center; gap:6px;
+.live-pill { display:flex; align-items:center; gap:6px; cursor:pointer; line-height:1;
   background: rgba(57,232,123,0.08); border:1px solid rgba(57,232,123,0.2);
   border-radius:20px; padding:4px 10px;
   font-family:var(--mono); font-size:10px; color:var(--green); letter-spacing:0.1em; }
 .live-pill.stale { background:rgba(245,200,66,0.08); border-color:rgba(245,200,66,0.25); color:var(--yellow); }
 .live-pill.stale .live-dot { background:var(--yellow); animation:none; }
+.live-ref { font-size:12px; opacity:.7; display:inline-block; }
+.live-pill:hover .live-ref { opacity:1; }
+.live-pill.busy .live-ref { animation: spin .8s linear infinite; }
+.live-pill:disabled { cursor:default; }
+@keyframes spin { to { transform:rotate(360deg); } }
 .live-dot { width:6px; height:6px; border-radius:50%; background:var(--green);
   animation: blink 2s ease-in-out infinite; }
 @keyframes blink {
@@ -384,6 +389,10 @@ header {
   header { padding: calc(12px + var(--sat)) 16px 8px; }
   #local-clock { display:none; }
   .wordmark { font-size: 24px; }
+  .wordmark-sub { white-space:nowrap; letter-spacing:0.14em; }
+  .header-right { gap:10px; }
+  .live-pill { padding:4px 8px; }
+  #utc-clock { font-size:11px; white-space:nowrap; }
 
   .stat-strip { grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
   .stat-n { font-size:26px; }
@@ -423,11 +432,15 @@ header {
 <div id="app">
   <header>
     <div>
-      <div class="wordmark">ORBITAL</div>
+      <svg class="wordmark" viewBox="0 0 318 100" role="img" aria-label="ORBITAL">
+        <defs><linearGradient id="wm-grad" x1="0" y1="0" x2="1" y2="0.36">
+          <stop offset="0" stop-color="#4d9fff"/><stop offset="1" stop-color="#9b7aff"/></linearGradient></defs>
+        <text x="0" y="80" fill="url(#wm-grad)">ORBITAL</text>
+      </svg>
       <div class="wordmark-sub">Space Mission Dashboard</div>
     </div>
     <div class="header-right">
-      <div class="live-pill" id="live-pill" title=""><div class="live-dot"></div><span id="live-txt">LIVE</span></div>
+      <button type="button" class="live-pill" id="live-pill" title="" aria-label="Refresh data"><div class="live-dot"></div><span id="live-txt">LIVE</span><span class="live-ref" aria-hidden="true">↻</span></button>
       <div>
         <div id="utc-clock"></div>
         <div id="local-clock"></div>
@@ -791,6 +804,8 @@ async function loadLaunches(force=false){
       const m={updated:Date.now(), source:'live', total:e.total, partial: merged.length<e.total};
       if(!m.partial) store.set(CACHE_KEY,{results:merged, meta:m});
       apply(merged,m);
+    } else if(old.length && force && await tryMirror()){
+      // manual refresh hit the rate limit: mirror data beats a stale cache
     } else if(old.length){
       apply(old,{...cached.meta, source:'cache', rateLimited:true});
     } else {
@@ -807,6 +822,23 @@ async function loadLaunches(force=false){
     scheduleNext(10*60e3);
   }
 }
+async function tryMirror(){
+  try { const {results,total}=await fetchAll(LL_DEV);
+    if(!results.length) return false;
+    apply(results.map(normalize),{updated:Date.now(), source:'mirror', total, partial:false}); return true;
+  } catch { return false; }
+}
+
+let refreshing=false;
+async function refreshAll(){
+  if(refreshing) return;
+  refreshing=true;
+  const pill=$('live-pill'); pill.classList.add('busy'); pill.disabled=true;
+  try { await Promise.allSettled([loadLaunches(true), fetchISS(), fetchCrew()]); }
+  finally { refreshing=false; pill.classList.remove('busy'); pill.disabled=false; setPill(); }
+}
+$('live-pill').addEventListener('click', refreshAll);
+
 let nextTimer=null;
 function scheduleNext(ms){ clearTimeout(nextTimer); nextTimer=setTimeout(()=>loadLaunches(), Math.max(ms, 60e3)); }
 
@@ -872,7 +904,7 @@ function setPill(){
   const stale = meta.source!=='live' || meta.partial || meta.rateLimited;
   pill.classList.toggle('stale', !!stale || !meta.updated);
   txt.textContent = !meta.updated ? 'OFFLINE' : meta.source==='mirror' ? 'MIRROR' : meta.rateLimited ? 'CACHED' : 'LIVE';
-  pill.title = meta.updated ? `Launch data updated ${ago} min ago` : 'No launch data';
+  pill.title = (meta.updated ? `Launch data updated ${ago} min ago` : 'No launch data') + ' · tap to refresh';
 }
 
 /* ── RENDER: NEXT LAUNCH ───────────────────────────── */
