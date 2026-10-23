@@ -4,10 +4,10 @@ A single-file dashboard for upcoming and recent rocket launches and the Internat
 
 ## Features
 
-- **Next launch**: live countdown, mission photo, UTC and local T-0, launch window, provider, vehicle and pad. Switch between all launches and US-only. The next three launches are listed below and open in the schedule.
+- **Next launch**: live countdown, mission photo, UTC and local T-0, launch window, provider, vehicle and pad. Shows US launches by default; switch to all launches anytime. The next three launches are listed below and open in the schedule.
 - **Full schedule**: every upcoming launch worldwide (~370), grouped by month.
   - Search by mission, rocket, provider or site.
-  - Filter by region (with counts) or show only launches with confirmed dates.
+  - Filter by region (with counts, USA by default) or show only launches with confirmed dates.
   - Click a row to see its details.
   - Dates are shown only as precisely as they're known, e.g. `NET Q4 2026` or `Time TBD`.
 - **Recent launches**: an Upcoming / Recent switch on the schedule shows the last 30 launches, newest first, with how long ago each flew and its result (`SUCCESS`, `FAILURE`, `PARTIAL`, or `PENDING` until the API records an outcome). Search and region filters work here too. The page always opens on Upcoming.
@@ -68,11 +68,9 @@ Tap the badge (↻) to force a fresh fetch of launches (one request), ISS positi
 
 The page also saves these in `localStorage`:
 
-- `orbital.scope`: the All/USA choice on the Next Launch panel
-- `orbital.region`: the selected schedule region (shared by the Upcoming and Recent views)
 - `orbital.isstrack`: the recent ISS ground track, so the trail survives reloads
 
-The Upcoming / Recent choice is deliberately not saved, so every visit starts on upcoming launches.
+These choices are deliberately not saved, so every visit starts on **USA** for Next Launch, Upcoming and Recent, and on the Upcoming view. Switch to All or another country at any time.
 
 ## License
 

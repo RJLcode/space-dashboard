@@ -615,8 +615,11 @@ const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','D
 const MONTH = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const store = {
   get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k){ try { localStorage.removeItem(k); } catch {} }
 };
+// every visit opens on USA; drop the All/region choices older versions saved
+store.del('orbital.scope'); store.del('orbital.region');
 
 /* ── MOBILE TAB SWITCH ─────────────────────────────── */
 document.querySelectorAll('.ntab').forEach(btn => btn.addEventListener('click', () => {
@@ -988,11 +991,11 @@ function setPill(){
 }
 
 /* ── RENDER: NEXT LAUNCH ───────────────────────────── */
-let scope=store.get('orbital.scope')||'all', cdTimer=null, heroId=null;
+let scope='us', cdTimer=null, heroId=null;
 document.querySelectorAll('#scope button').forEach(b=>{
   b.classList.toggle('on', b.dataset.scope===scope);
   b.addEventListener('click',()=>{
-    scope=b.dataset.scope; store.set('orbital.scope',scope);
+    scope=b.dataset.scope;
     document.querySelectorAll('#scope button').forEach(x=>x.classList.toggle('on',x===b));
     renderNext();
   });
@@ -1061,8 +1064,8 @@ function startCD(l){
 }
 
 /* ── RENDER: SCHEDULE ──────────────────────────────── */
-let filt={q:'', region:store.get('orbital.region')||'All', status:'all'}, openId=null, shown=150;
-// always opens on Upcoming; Recent is not remembered between visits
+let filt={q:'', region:'USA', status:'all'}, openId=null, shown=150;
+// always opens on Upcoming and USA; neither is remembered between visits
 let mode='up';
 const schedulePool=()=>mode==='past'?past:upcoming();
 
@@ -1090,9 +1093,10 @@ function renderChips(){
   const pool=schedulePool(), counts={};
   pool.forEach(l=>counts[l.region]=(counts[l.region]||0)+1);
   const regions=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  if(filt.region!=='All' && !counts[filt.region]){
-    // keep the saved region in Recent so switching back doesn't lose it; show it with 0
-    if(mode==='past' && pool.length) regions.push([filt.region,0]); else filt.region='All';
+  // an empty pool means data is still loading: keep the region until it arrives
+  if(filt.region!=='All' && !counts[filt.region] && pool.length){
+    // keep the region in Recent so switching back doesn't lose it; show it with 0
+    if(mode==='past') regions.push([filt.region,0]); else filt.region='All';
   }
   const goN=pool.filter(l=>l.status==='Go'||l.status==='TBC').length;
   $('chips').innerHTML=
@@ -1100,7 +1104,7 @@ function renderChips(){
     regions.map(([r,n])=>`<button class="chip ${filt.region===r?'on':''}" data-r="${esc(r)}">${esc(r)}<span class="n">${n}</span></button>`).join('')+
     (mode==='past'?'':`<span class="chip-sep"></span><button class="chip ${filt.status==='firm'?'on':''}" data-s="firm">Confirmed dates<span class="n">${goN}</span></button>`);
   $('chips').querySelectorAll('[data-r]').forEach(b=>b.addEventListener('click',()=>{
-    filt.region=b.dataset.r; store.set('orbital.region',filt.region); shown=150; renderChips(); renderList(); }));
+    filt.region=b.dataset.r; shown=150; renderChips(); renderList(); }));
   $('chips').querySelector('[data-s]')?.addEventListener('click',()=>{
     filt.status=filt.status==='firm'?'all':'firm'; shown=150; renderChips(); renderList(); });
 }
@@ -1163,7 +1167,10 @@ let qT; $('q').addEventListener('input',e=>{ clearTimeout(qT); qT=setTimeout(()=
 
 function revealInList(id){
   setMode('up');
-  filt.q=''; $('q').value=''; filt.region='All'; filt.status='all'; shown=Infinity; openId=id;
+  // keep the region filter if the launch is in it, otherwise widen to All
+  const l=launches.find(x=>x.id===id);
+  if(l && l.region!==filt.region) filt.region='All';
+  filt.q=''; $('q').value=''; filt.status='all'; shown=Infinity; openId=id;
   renderChips(); renderList();
   if(innerWidth<=768) showTab('card-list');
   requestAnimationFrame(()=>document.querySelector(`.lrow[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({block:'center',behavior:'smooth'}));
