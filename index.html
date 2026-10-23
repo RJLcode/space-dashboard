@@ -22,6 +22,24 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
+<script>
+/* Home-screen app height. iOS 26 reports innerHeight / 100dvh one status-bar
+   height short of the screen in standalone mode, so the dashboard ended above
+   the bottom edge. A standalone app always fills the screen, so use that. */
+function appHeight(){
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  if (!standalone) { document.documentElement.style.removeProperty('--app-h'); return innerHeight; }
+  const sw = screen.width, sh = screen.height;
+  const full = innerWidth > innerHeight ? Math.min(sw, sh) : Math.max(sw, sh);
+  const h = Math.max(full, innerHeight);
+  document.documentElement.style.setProperty('--app-h', h + 'px');
+  return h;
+}
+appHeight();
+addEventListener('resize', appHeight);
+addEventListener('orientationchange', () => setTimeout(appHeight, 300));
+</script>
+
 <style>
 /* ─── TOKENS ─────────────────────────────────────────── */
 :root {
@@ -48,14 +66,16 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { height: -webkit-fill-available; }
+/* iOS 26 home-screen apps size the viewport one status-bar height short of
+   the screen, leaving an unpainted strip at the bottom; this extends it */
+html { background: var(--bg); }
+@media (display-mode: standalone) { html { min-height: calc(100% + var(--sat)); } }
 
 body {
   font-family: var(--body);
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  min-height: -webkit-fill-available;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
@@ -64,13 +84,13 @@ body {
 button, input { font: inherit; color: inherit; }
 
 /* ─── STARFIELD ──────────────────────────────────────── */
-#stars { position:fixed; inset:0; z-index:0; pointer-events:none; }
+#stars { position:fixed; top:0; left:0; right:0; height:var(--app-h, 100dvh); z-index:0; pointer-events:none; }
 
 /* ─── APP SHELL ──────────────────────────────────────── */
 #app {
   position: relative; z-index: 1;
   display: flex; flex-direction: column;
-  height: 100vh; height: 100dvh;
+  height: 100vh; height: var(--app-h, 100dvh);
   padding-left: var(--sal);
   padding-right: var(--sar);
 }
@@ -595,7 +615,7 @@ function showTab(id){ document.querySelector(`.ntab[data-id="${id}"]`)?.click();
   let W,H,S=[];
   function init(){
     const dpr=Math.min(devicePixelRatio||1,2);
-    W=innerWidth; H=innerHeight;
+    W=innerWidth; H=appHeight();
     c.width=W*dpr; c.height=H*dpr; c.style.width=W+'px'; c.style.height=H+'px';
     ctx.setTransform(dpr,0,0,dpr,0,0);
     S=Array.from({length:Math.round(W*H/7000)},()=>({
