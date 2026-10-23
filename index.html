@@ -44,10 +44,10 @@ addEventListener('orientationchange', () => setTimeout(appHeight, 300));
 /* ─── TOKENS ─────────────────────────────────────────── */
 :root {
   --bg:     #03060f;
-  --s1:     #080e1f;
-  --s2:     #0c1428;
-  --s3:     #111c38;
-  --border: rgba(80,140,255,0.13);
+  --s1:     #0d1630;
+  --s2:     #14213f;
+  --s3:     #1c2c52;
+  --border: rgba(110,165,255,0.24);
   --blue:   #4d9fff;
   --orange: #ff6c36;
   --green:  #39e87b;
@@ -162,6 +162,7 @@ header {
   background: var(--s1);
   border: 1px solid var(--border);
   border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.45);
   padding: 14px 16px;
   position: relative; overflow: hidden;
 }
@@ -193,6 +194,7 @@ header {
   background: var(--s1);
   border: 1px solid var(--border);
   border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
   padding: 20px;
   display: flex; flex-direction: column;
   position: relative; overflow: hidden;
@@ -218,7 +220,7 @@ header {
   opacity:0; transition:opacity .6s; }
 .hero-bg.on { opacity:.28; }
 .hero-bg::after { content:''; position:absolute; inset:0;
-  background:linear-gradient(90deg, var(--s1) 20%, rgba(8,14,31,0.7) 60%, rgba(8,14,31,0.35));
+  background:linear-gradient(90deg, var(--s1) 20%, rgba(13,22,48,0.7) 60%, rgba(13,22,48,0.35));
 }
 .hero { position:relative; padding:20px; display:grid;
   grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap:22px; }
@@ -237,7 +239,7 @@ header {
 .hero-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:16px; }
 
 .cd-row { display:flex; gap:8px; margin-bottom:10px; }
-.cd-unit { flex:1; background:rgba(12,20,40,0.85); border:1px solid var(--border);
+.cd-unit { flex:1; background:rgba(20,33,63,0.85); border:1px solid var(--border);
   border-radius:10px; padding:10px 4px; text-align:center; }
 .cd-n { font-family:var(--disp); font-size:36px; letter-spacing:0.04em;
   color:var(--orange); line-height:1; display:block; font-variant-numeric: tabular-nums; }
@@ -257,7 +259,7 @@ header {
 .hero-queue { position:relative; border-top:1px solid var(--border);
   display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
 .hq { padding:12px 20px; border-right:1px solid var(--border); cursor:pointer; min-width:0;
-  background:rgba(8,14,31,0.6); transition:background .15s; }
+  background:rgba(13,22,48,0.6); transition:background .15s; }
 .hq:last-child { border-right:none; }
 .hq:hover { background:var(--s2); }
 .hq-t { font-family:var(--mono); font-size:10px; color:var(--blue); letter-spacing:.08em; margin-bottom:3px; }
@@ -278,6 +280,7 @@ header {
 
 /* ─── SCHEDULE ───────────────────────────────────────── */
 #card-list { --ca: var(--blue); }
+.list-side { display:flex; flex-direction:column; align-items:flex-end; gap:6px; margin-bottom:10px; }
 .list-meta { font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:.06em; text-align:right; line-height:1.5; }
 
 .toolbar { display:flex; flex-direction:column; gap:10px; margin-bottom:6px; }
@@ -307,9 +310,9 @@ header {
 
 .lrow { display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:14px; align-items:center;
   padding:11px 12px; margin-top:8px; cursor:pointer;
-  background:rgba(12,20,40,0.65); border:1px solid rgba(80,140,255,0.18);
+  background:var(--s2); border:1px solid rgba(110,165,255,0.26);
   border-radius:10px; transition:background .12s, border-color .12s; }
-.lrow:hover { background:var(--s2); border-color:rgba(77,159,255,0.38); }
+.lrow:hover { background:var(--s3); border-color:rgba(77,159,255,0.5); }
 .lrow.open { background:var(--s2); border-color:rgba(77,159,255,0.45); border-bottom-color:transparent; border-radius:10px 10px 0 0; }
 .ldate { text-align:center; background:var(--s3); border:1px solid var(--border); border-radius:8px; padding:6px 0 5px; }
 .ldate-a { font-family:var(--disp); font-size:22px; line-height:1; letter-spacing:.03em; }
@@ -325,7 +328,7 @@ header {
 
 .ldet { background:var(--s2); border:1px solid rgba(77,159,255,0.45); border-top:none;
   border-radius:0 0 10px 10px; padding:4px 14px 12px 84px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 20px; }
-.ldet .drow { border-bottom-color:rgba(80,140,255,0.08); }
+.ldet .drow { border-bottom-color:rgba(110,165,255,0.14); }
 .ldet .dv { font-size:12px; font-weight:500; }
 
 .empty { text-align:center; padding:40px 10px; color:var(--muted); font-size:13px; }
@@ -515,9 +518,14 @@ header {
         <div class="card-head">
           <div>
             <div class="eyebrow">Mission Schedule</div>
-            <div class="card-title">All Upcoming Launches</div>
+            <div class="card-title" id="list-title">All Upcoming Launches</div>
           </div>
-          <div class="list-meta" id="list-meta"></div>
+          <div class="list-side">
+            <div class="scope" id="mode">
+              <button data-mode="up" class="on">UPCOMING</button><button data-mode="past">RECENT</button>
+            </div>
+            <div class="list-meta" id="list-meta"></div>
+          </div>
         </div>
         <div class="toolbar">
           <label class="search">
@@ -732,11 +740,12 @@ async function fetchCrew(){
 }
 
 /* ── LAUNCH DATA ───────────────────────────────────── */
-// Launch Library 2 free tier allows 15 requests/hour. All ~370 upcoming launches
-// take ~4 pages, so results are cached and refreshed at most every 30 min.
-const LL_PROD='https://ll.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net&limit=100';
-const LL_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net&limit=100';
-const CACHE_KEY='orbital.launches.v2', TTL=30*60e3;
+// Launch Library 2 free tier allows 15 requests/hour per network, shared by every
+// device on it. All ~480 upcoming launches take ~5 pages, so the list is cached:
+// the first page is refreshed every 30 min, the rest every 6 hours.
+const LL_PROD='https://ll.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net,id&limit=100';
+const LL_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net,id&limit=100';
+const CACHE_KEY='orbital.launches.v2', TTL=30*60e3, TAIL_TTL=6*60*60e3;
 const FINE=new Set(['SEC','MIN','HR']);
 
 const COUNTRY_FIX = {
@@ -776,10 +785,10 @@ function normalize(l){
 
 let launches=[], meta={updated:0, source:'', total:0, partial:false};
 
-async function fetchAll(base, offset=0){
-  let url=offset?`${base}&offset=${offset}`:base, out=[], total=0;
+async function fetchAll(base, pages=Infinity){
+  let url=base, out=[], total=0;
   const progressive=!launches.length;
-  while(url){
+  while(url && pages-- > 0){
     const r=await fetch(url);
     if(r.status===429) { const e=new Error('rate'); e.partial=out; e.total=total; throw e; }
     if(!r.ok) { const e=new Error('http '+r.status); e.partial=out; e.total=total; throw e; }
@@ -789,7 +798,7 @@ async function fetchAll(base, offset=0){
     // paint progressively on the first uncached load
     if(progressive && url) { apply(out.map(normalize), {updated:Date.now(), source:'live', total, partial:!!url}); }
   }
-  return {results:out, total};
+  return {results:out, total, more:!!url};
 }
 
 function apply(list, m){
@@ -797,56 +806,67 @@ function apply(list, m){
   renderAll();
 }
 
-async function loadLaunches(force=false){
+// startup and the tab-visible event can both ask at once; share one fetch
+let launchesInFlight=null;
+function loadLaunches(force=false){
+  return launchesInFlight ??= doLoadLaunches(force).finally(()=>{ launchesInFlight=null; });
+}
+async function doLoadLaunches(force){
   const cached=store.get(CACHE_KEY);
   if(cached?.results?.length && !launches.length) apply(cached.results, {...cached.meta, source:cached.meta.source||'cache'});
-  if(!force && cached && Date.now()-cached.meta.updated < TTL) { scheduleNext(TTL-(Date.now()-cached.meta.updated)); return; }
+  // mirror-only data is kept to paint instantly, but production is retried every load
+  if(!force && cached && cached.meta.source!=='mirror' && Date.now()-cached.meta.updated < TTL) { scheduleNext(TTL-(Date.now()-cached.meta.updated)); return; }
 
+  // The next 100 launches change often, so every refresh fetches that page (one
+  // request). The far-future tail rarely changes: it's reused from the cache and
+  // only re-fetched every TAIL_TTL. The dev mirror can't fill it, it's incomplete.
+  const tail=cached?.meta.source==='live' ? cached.results : [];
+  const tailFresh=tail.length && Date.now()-(cached.meta.tailUpdated||0) < TAIL_TTL;
+  let got=[], total=0, complete=false, err=null;
   try {
-    const {results,total}=await fetchAll(LL_PROD);
-    const m={updated:Date.now(), source:'live', total, partial:false};
-    const list=results.map(normalize);
+    const r=await fetchAll(LL_PROD, tailFresh ? 1 : Infinity);
+    got=r.results.map(normalize); total=r.total; complete=!r.more;
+  } catch(e){ err=e; got=(e.partial||[]).map(normalize); total=e.total; }
+
+  if(got.length){
+    let list=got;
+    if(!complete){
+      const lastT=got[got.length-1].t, ids=new Set(got.map(x=>x.id));
+      list=got.concat(tail.filter(x=>x.t>=lastT && !ids.has(x.id)));   // >=: many share a vague NET
+    }
+    const m={updated:Date.now(), source:'live', total,
+      tailUpdated: complete ? Date.now() : tail.length ? cached.meta.tailUpdated||0 : 0,
+      partial: !complete && !tail.length};
     store.set(CACHE_KEY,{results:list, meta:m});
     apply(list,m);
-    scheduleNext(TTL);
-  } catch(e){
-    const got=(e.partial||[]).map(normalize);
-    const old=cached?.results||[];
-    if(got.length){
-      // merge fresh pages with cached tail so the list stays complete
-      const lastT=got[got.length-1].t, ids=new Set(got.map(x=>x.id));
-      let merged=got.concat(old.filter(x=>x.t>lastT && !ids.has(x.id)));
-      if(merged.length<e.total){
-        // no cached tail: fetch the remaining pages from the dev mirror
-        try { const {results}=await fetchAll(LL_DEV, got.length);
-          merged=got.concat(results.map(normalize).filter(x=>!ids.has(x.id))); } catch {}
-      }
-      const m={updated:Date.now(), source:'live', total:e.total, partial: merged.length<e.total};
-      if(!m.partial) store.set(CACHE_KEY,{results:merged, meta:m});
-      apply(merged,m);
-    } else if(old.length && force && await tryMirror()){
-      // manual refresh hit the rate limit: mirror data beats a stale cache
-    } else if(old.length){
-      apply(old,{...cached.meta, source:'cache', rateLimited:true});
-    } else {
-      // last resort: dev mirror (not rate limited, may lag a little)
-      try {
-        const {results,total}=await fetchAll(LL_DEV);
-        apply(results.map(normalize),{updated:Date.now(), source:'mirror', total, partial:false});
-      } catch(e2){
-        const got2=(e2.partial||[]).map(normalize);
-        if(got2.length) apply(got2,{updated:Date.now(), source:'mirror', total:e2.total, partial:true});
-        else showLaunchError();
-      }
-    }
-    scheduleNext(10*60e3);
+    if(!err) { scheduleNext(TTL); return; }
+  } else if(cached?.results?.length){
+    // rate-limited: a stale production list beats the incomplete mirror
+    apply(cached.results,{...cached.meta, source:cached.meta.source==='mirror'?'mirror':'cache', rateLimited:true});
+  } else if(!await tryMirror()){
+    // last resort: dev mirror (not rate limited, but missing launches)
+    showLaunchError();
   }
+  // go back to production as soon as this network's hourly quota frees up
+  scheduleNext(await quotaWait() ?? 10*60e3);
 }
 async function tryMirror(){
   try { const {results,total}=await fetchAll(LL_DEV);
     if(!results.length) return false;
-    apply(results.map(normalize),{updated:Date.now(), source:'mirror', total, partial:false}); return true;
-  } catch { return false; }
+    const list=results.map(normalize), m={updated:Date.now(), source:'mirror', total, partial:false};
+    store.set(CACHE_KEY,{results:list, meta:m});
+    apply(list,m); return true;
+  } catch(e){
+    const got=(e.partial||[]).map(normalize);
+    if(got.length) apply(got,{updated:Date.now(), source:'mirror', total:e.total, partial:true});
+    return got.length>0;
+  }
+}
+// ms until production accepts requests again (this endpoint doesn't use up the quota)
+async function quotaWait(){
+  try { const d=await (await fetch('https://ll.thespacedevs.com/2.2.0/api-throttle/')).json();
+    return d.current_use<d.your_request_limit ? 5*60e3 : (d.next_use_secs+5)*1e3;
+  } catch { return null; }
 }
 
 let refreshing=false;
@@ -854,13 +874,40 @@ async function refreshAll(){
   if(refreshing) return;
   refreshing=true;
   const pill=$('live-pill'); pill.classList.add('busy'); pill.disabled=true;
-  try { await Promise.allSettled([loadLaunches(true), fetchISS(), fetchCrew()]); }
+  try { await Promise.allSettled([loadLaunches(true), fetchISS(), fetchCrew(), mode==='past' && loadPast(true)]); }
   finally { refreshing=false; pill.classList.remove('busy'); pill.disabled=false; setPill(); }
 }
 $('live-pill').addEventListener('click', refreshAll);
 
 let nextTimer=null;
 function scheduleNext(ms){ clearTimeout(nextTimer); nextTimer=setTimeout(()=>loadLaunches(), Math.max(ms, 60e3)); }
+
+// Recent launches are only fetched once the user opens the Recent view (one request),
+// and cached longer since past results rarely change.
+const PAST_PROD='https://ll.thespacedevs.com/2.2.0/launch/previous/?mode=list&ordering=-net&limit=30';
+const PAST_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/previous/?mode=list&ordering=-net&limit=30';
+const PAST_KEY='orbital.past.v1', PAST_TTL=2*60*60e3;
+let past=[], pastMeta={updated:0, source:''}, pastLoading=false, pastError=false;
+
+async function loadPast(force=false){
+  const cached=store.get(PAST_KEY);
+  if(cached?.results?.length && !past.length){ past=cached.results; pastMeta={...cached.meta, source:'cache'}; }
+  if(pastLoading || (!force && cached && Date.now()-cached.meta.updated < PAST_TTL)) return;
+  pastLoading=true; pastError=false;
+  for(const [url,source] of [[PAST_PROD,'live'],[PAST_DEV,'mirror']]){
+    try {
+      const r=await fetch(url);
+      if(!r.ok) continue;
+      past=((await r.json()).results||[]).map(normalize);
+      pastMeta={updated:Date.now(), source};
+      store.set(PAST_KEY,{results:past, meta:pastMeta});
+      break;
+    } catch {}
+  }
+  pastError=!past.length;
+  pastLoading=false;
+  if(mode==='past') renderSchedule();
+}
 
 function showLaunchError(){
   $('next-name').textContent='Data unavailable';
@@ -873,7 +920,9 @@ function showLaunchError(){
 function badge(l){
   const map={Go:['bdg-go','GO'],TBC:['bdg-tbc','TBC'],TBD:['bdg-tbd','TBD'],Hold:['bdg-hold','HOLD'],
     'In Flight':['bdg-fly','IN FLIGHT'],Success:['bdg-go','SUCCESS'],Failure:['bdg-fail','FAILURE'],'Partial Failure':['bdg-fail','PARTIAL']};
-  const [c,t]=map[l.status]||['bdg-tbd',l.status||'TBD'];
+  // past launches the API hasn't scored yet still say Go/TBC
+  const pending=l.t<Date.now()-3600e3 && ['Go','TBC','TBD'].includes(l.status);
+  const [c,t]=pending?['bdg-tbd','PENDING']:map[l.status]||['bdg-tbd',l.status||'TBD'];
   return `<span class="bdg ${c}" title="${esc(l.statusName)}">${esc(t)}</span>`;
 }
 
@@ -1002,28 +1051,54 @@ function startCD(l){
 
 /* ── RENDER: SCHEDULE ──────────────────────────────── */
 let filt={q:'', region:store.get('orbital.region')||'All', status:'all'}, openId=null, shown=150;
+// always opens on Upcoming; Recent is not remembered between visits
+let mode='up';
+const schedulePool=()=>mode==='past'?past:upcoming();
+
+document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+function setMode(m){
+  if(m===mode) return;
+  mode=m; openId=null; shown=150;
+  document.querySelectorAll('#mode button').forEach(x=>x.classList.toggle('on',x.dataset.mode===m));
+  $('list-title').textContent = m==='past' ? 'Recent Launches' : 'All Upcoming Launches';
+  if(m==='past') loadPast();
+  renderSchedule();
+}
+
+function renderSchedule(){ renderListMeta(); renderChips(); renderList(); }
+
+function renderListMeta(){
+  const src=mode==='past'?pastMeta:meta, ago=Math.round((Date.now()-src.updated)/60e3);
+  const stamp=src.updated?`${src.source==='mirror'?'dev mirror · ':''}updated ${ago<1?'just now':ago+' min ago'}`:'';
+  if(mode==='past'){ $('list-meta').innerHTML=past.length?`last ${past.length} launches<br>${stamp}`:''; return; }
+  $('list-meta').innerHTML = `${upcoming().length}${meta.total&&meta.total>launches.length?` of ${meta.total}`:''} launches<br>${stamp}`+
+    (meta.partial?'<br><span style="color:var(--yellow)">rate limited — rest loading later</span>':'');
+}
 
 function renderChips(){
-  const pool=upcoming(), counts={};
+  const pool=schedulePool(), counts={};
   pool.forEach(l=>counts[l.region]=(counts[l.region]||0)+1);
   const regions=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  if(filt.region!=='All' && !counts[filt.region]) filt.region='All';
+  if(filt.region!=='All' && !counts[filt.region]){
+    // keep the saved region in Recent so switching back doesn't lose it; show it with 0
+    if(mode==='past' && pool.length) regions.push([filt.region,0]); else filt.region='All';
+  }
   const goN=pool.filter(l=>l.status==='Go'||l.status==='TBC').length;
   $('chips').innerHTML=
     `<button class="chip ${filt.region==='All'?'on':''}" data-r="All">All<span class="n">${pool.length}</span></button>`+
     regions.map(([r,n])=>`<button class="chip ${filt.region===r?'on':''}" data-r="${esc(r)}">${esc(r)}<span class="n">${n}</span></button>`).join('')+
-    `<span class="chip-sep"></span><button class="chip ${filt.status==='firm'?'on':''}" data-s="firm">Confirmed dates<span class="n">${goN}</span></button>`;
+    (mode==='past'?'':`<span class="chip-sep"></span><button class="chip ${filt.status==='firm'?'on':''}" data-s="firm">Confirmed dates<span class="n">${goN}</span></button>`);
   $('chips').querySelectorAll('[data-r]').forEach(b=>b.addEventListener('click',()=>{
     filt.region=b.dataset.r; store.set('orbital.region',filt.region); shown=150; renderChips(); renderList(); }));
-  $('chips').querySelector('[data-s]').addEventListener('click',()=>{
+  $('chips').querySelector('[data-s]')?.addEventListener('click',()=>{
     filt.status=filt.status==='firm'?'all':'firm'; shown=150; renderChips(); renderList(); });
 }
 
 function filtered(){
   const q=filt.q.trim().toLowerCase();
-  return upcoming().filter(l=>
+  return schedulePool().filter(l=>
     (filt.region==='All'||l.region===filt.region) &&
-    (filt.status==='all'||l.status==='Go'||l.status==='TBC') &&
+    (mode==='past'||filt.status==='all'||l.status==='Go'||l.status==='TBC') &&
     (!q || [l.name,l.vehicle,l.provider,l.location,l.pad,l.type,l.region].join(' ').toLowerCase().includes(q)));
 }
 
@@ -1046,14 +1121,17 @@ function detHTML(l,w){
     <div class="drow"><span class="dk">Pad</span><span class="dv">${esc(l.pad||'—')}</span></div>
     <div class="drow"><span class="dk">Site</span><span class="dv">${esc(l.location||'—')}</span></div>
     <div class="drow"><span class="dk">Mission type</span><span class="dv">${esc(l.type||'—')}</span></div>
-    <div class="drow"><span class="dk">Countdown</span><span class="dv">${esc(w.fuzzy?'—':rel(l.t))}</span></div>
+    <div class="drow"><span class="dk">${l.t<Date.now()?'Since launch':'Countdown'}</span><span class="dv">${esc(w.fuzzy?'—':rel(l.t))}</span></div>
   </div>`;
 }
 
 function renderList(){
   const list=filtered();
   if(!list.length){
-    $('list-body').innerHTML= launches.length ? `<div class="empty">No launches match these filters.</div>` : '';
+    $('list-body').innerHTML= mode==='past' && !past.length
+      ? (pastError ? '<div class="err">Recent launches unavailable right now. Try again in a few minutes.</div>'
+        : '<div class="sk"></div><div class="sk" style="width:80%"></div><div class="sk"></div><div class="sk" style="width:65%"></div>')
+      : schedulePool().length || launches.length ? `<div class="empty">No launches match these filters.</div>` : '';
     return;
   }
   const groups=new Map();
@@ -1073,6 +1151,7 @@ $('list-body').addEventListener('click',e=>{
 let qT; $('q').addEventListener('input',e=>{ clearTimeout(qT); qT=setTimeout(()=>{ filt.q=e.target.value; shown=150; renderList(); },120); });
 
 function revealInList(id){
+  setMode('up');
   filt.q=''; $('q').value=''; filt.region='All'; filt.status='all'; shown=Infinity; openId=id;
   renderChips(); renderList();
   if(innerWidth<=768) showTab('card-list');
@@ -1084,17 +1163,12 @@ function renderAll(){
   const pool=upcoming();
   $('s-up').textContent=meta.total || pool.length;
   $('s-week').textContent=pool.filter(l=>l.t-Date.now()<7*86400e3 && (!l.prec||FINE.has(l.prec)||l.prec==='DAY')).length;
-  const ago=Math.round((Date.now()-meta.updated)/60e3);
-  $('list-meta').innerHTML = `${pool.length}${meta.total&&meta.total>launches.length?` of ${meta.total}`:''} launches<br>`+
-    `${meta.source==='mirror'?'dev mirror · ':''}updated ${ago<1?'just now':ago+' min ago'}`+
-    (meta.partial?'<br><span style="color:var(--yellow)">rate limited — rest loading later</span>':'');
   setPill();
   renderNext();
-  renderChips();
-  renderList();
+  renderSchedule();
 }
 // keep relative times and "updated x min ago" fresh
-setInterval(()=>{ if(launches.length && !document.hidden) renderAll(); }, 60e3);
+setInterval(()=>{ if(launches.length && !document.hidden) renderAll(); else if(mode==='past' && !document.hidden) renderSchedule(); }, 60e3);
 
 /* ── INIT ──────────────────────────────────────────── */
 loadLaunches();
