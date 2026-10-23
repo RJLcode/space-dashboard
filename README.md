@@ -56,11 +56,7 @@ The header badge shows where the data came from:
 | `MIRROR` | Data from the dev mirror |
 | `OFFLINE` | No launch data available |
 
-To force a fresh fetch, clear the cache from the browser console:
-
-```js
-localStorage.removeItem('orbital.launches.v2'); location.reload();
-```
+Tap the badge (↻) to force a fresh fetch of launches, ISS position and crew. If the production API is rate-limited at that moment, the refresh pulls from the dev mirror instead of keeping the stale cache.
 
 ## Stored preferences
 
