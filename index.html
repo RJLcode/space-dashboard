@@ -278,6 +278,7 @@ header {
 
 /* ─── SCHEDULE ───────────────────────────────────────── */
 #card-list { --ca: var(--blue); }
+.list-side { display:flex; flex-direction:column; align-items:flex-end; gap:6px; margin-bottom:10px; }
 .list-meta { font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:.06em; text-align:right; line-height:1.5; }
 
 .toolbar { display:flex; flex-direction:column; gap:10px; margin-bottom:6px; }
@@ -515,9 +516,14 @@ header {
         <div class="card-head">
           <div>
             <div class="eyebrow">Mission Schedule</div>
-            <div class="card-title">All Upcoming Launches</div>
+            <div class="card-title" id="list-title">All Upcoming Launches</div>
           </div>
-          <div class="list-meta" id="list-meta"></div>
+          <div class="list-side">
+            <div class="scope" id="mode">
+              <button data-mode="up" class="on">UPCOMING</button><button data-mode="past">RECENT</button>
+            </div>
+            <div class="list-meta" id="list-meta"></div>
+          </div>
         </div>
         <div class="toolbar">
           <label class="search">
@@ -862,6 +868,33 @@ $('live-pill').addEventListener('click', refreshAll);
 let nextTimer=null;
 function scheduleNext(ms){ clearTimeout(nextTimer); nextTimer=setTimeout(()=>loadLaunches(), Math.max(ms, 60e3)); }
 
+// Recent launches are only fetched once the user opens the Recent view (one request),
+// and cached longer since past results rarely change.
+const PAST_PROD='https://ll.thespacedevs.com/2.2.0/launch/previous/?mode=list&ordering=-net&limit=30';
+const PAST_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/previous/?mode=list&ordering=-net&limit=30';
+const PAST_KEY='orbital.past.v1', PAST_TTL=2*60*60e3;
+let past=[], pastMeta={updated:0, source:''}, pastLoading=false, pastError=false;
+
+async function loadPast(){
+  const cached=store.get(PAST_KEY);
+  if(cached?.results?.length && !past.length){ past=cached.results; pastMeta={...cached.meta, source:'cache'}; }
+  if(pastLoading || (cached && Date.now()-cached.meta.updated < PAST_TTL)) return;
+  pastLoading=true; pastError=false;
+  for(const [url,source] of [[PAST_PROD,'live'],[PAST_DEV,'mirror']]){
+    try {
+      const r=await fetch(url);
+      if(!r.ok) continue;
+      past=((await r.json()).results||[]).map(normalize);
+      pastMeta={updated:Date.now(), source};
+      store.set(PAST_KEY,{results:past, meta:pastMeta});
+      break;
+    } catch {}
+  }
+  pastError=!past.length;
+  pastLoading=false;
+  if(mode==='past') renderSchedule();
+}
+
 function showLaunchError(){
   $('next-name').textContent='Data unavailable';
   $('next-det').innerHTML='<div class="err">Launch Library is rate-limiting this network (15 requests/hour on the free tier). Data will load automatically when the limit resets.</div>';
@@ -873,7 +906,9 @@ function showLaunchError(){
 function badge(l){
   const map={Go:['bdg-go','GO'],TBC:['bdg-tbc','TBC'],TBD:['bdg-tbd','TBD'],Hold:['bdg-hold','HOLD'],
     'In Flight':['bdg-fly','IN FLIGHT'],Success:['bdg-go','SUCCESS'],Failure:['bdg-fail','FAILURE'],'Partial Failure':['bdg-fail','PARTIAL']};
-  const [c,t]=map[l.status]||['bdg-tbd',l.status||'TBD'];
+  // past launches the API hasn't scored yet still say Go/TBC
+  const pending=l.t<Date.now()-3600e3 && ['Go','TBC','TBD'].includes(l.status);
+  const [c,t]=pending?['bdg-tbd','PENDING']:map[l.status]||['bdg-tbd',l.status||'TBD'];
   return `<span class="bdg ${c}" title="${esc(l.statusName)}">${esc(t)}</span>`;
 }
 
@@ -1002,28 +1037,54 @@ function startCD(l){
 
 /* ── RENDER: SCHEDULE ──────────────────────────────── */
 let filt={q:'', region:store.get('orbital.region')||'All', status:'all'}, openId=null, shown=150;
+// always opens on Upcoming; Recent is not remembered between visits
+let mode='up';
+const schedulePool=()=>mode==='past'?past:upcoming();
+
+document.querySelectorAll('#mode button').forEach(b=>b.addEventListener('click',()=>setMode(b.dataset.mode)));
+function setMode(m){
+  if(m===mode) return;
+  mode=m; openId=null; shown=150;
+  document.querySelectorAll('#mode button').forEach(x=>x.classList.toggle('on',x.dataset.mode===m));
+  $('list-title').textContent = m==='past' ? 'Recent Launches' : 'All Upcoming Launches';
+  if(m==='past') loadPast();
+  renderSchedule();
+}
+
+function renderSchedule(){ renderListMeta(); renderChips(); renderList(); }
+
+function renderListMeta(){
+  const src=mode==='past'?pastMeta:meta, ago=Math.round((Date.now()-src.updated)/60e3);
+  const stamp=src.updated?`${src.source==='mirror'?'dev mirror · ':''}updated ${ago<1?'just now':ago+' min ago'}`:'';
+  if(mode==='past'){ $('list-meta').innerHTML=past.length?`last ${past.length} launches<br>${stamp}`:''; return; }
+  $('list-meta').innerHTML = `${upcoming().length}${meta.total&&meta.total>launches.length?` of ${meta.total}`:''} launches<br>${stamp}`+
+    (meta.partial?'<br><span style="color:var(--yellow)">rate limited — rest loading later</span>':'');
+}
 
 function renderChips(){
-  const pool=upcoming(), counts={};
+  const pool=schedulePool(), counts={};
   pool.forEach(l=>counts[l.region]=(counts[l.region]||0)+1);
   const regions=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  if(filt.region!=='All' && !counts[filt.region]) filt.region='All';
+  if(filt.region!=='All' && !counts[filt.region]){
+    // keep the saved region in Recent so switching back doesn't lose it; show it with 0
+    if(mode==='past' && pool.length) regions.push([filt.region,0]); else filt.region='All';
+  }
   const goN=pool.filter(l=>l.status==='Go'||l.status==='TBC').length;
   $('chips').innerHTML=
     `<button class="chip ${filt.region==='All'?'on':''}" data-r="All">All<span class="n">${pool.length}</span></button>`+
     regions.map(([r,n])=>`<button class="chip ${filt.region===r?'on':''}" data-r="${esc(r)}">${esc(r)}<span class="n">${n}</span></button>`).join('')+
-    `<span class="chip-sep"></span><button class="chip ${filt.status==='firm'?'on':''}" data-s="firm">Confirmed dates<span class="n">${goN}</span></button>`;
+    (mode==='past'?'':`<span class="chip-sep"></span><button class="chip ${filt.status==='firm'?'on':''}" data-s="firm">Confirmed dates<span class="n">${goN}</span></button>`);
   $('chips').querySelectorAll('[data-r]').forEach(b=>b.addEventListener('click',()=>{
     filt.region=b.dataset.r; store.set('orbital.region',filt.region); shown=150; renderChips(); renderList(); }));
-  $('chips').querySelector('[data-s]').addEventListener('click',()=>{
+  $('chips').querySelector('[data-s]')?.addEventListener('click',()=>{
     filt.status=filt.status==='firm'?'all':'firm'; shown=150; renderChips(); renderList(); });
 }
 
 function filtered(){
   const q=filt.q.trim().toLowerCase();
-  return upcoming().filter(l=>
+  return schedulePool().filter(l=>
     (filt.region==='All'||l.region===filt.region) &&
-    (filt.status==='all'||l.status==='Go'||l.status==='TBC') &&
+    (mode==='past'||filt.status==='all'||l.status==='Go'||l.status==='TBC') &&
     (!q || [l.name,l.vehicle,l.provider,l.location,l.pad,l.type,l.region].join(' ').toLowerCase().includes(q)));
 }
 
@@ -1046,14 +1107,17 @@ function detHTML(l,w){
     <div class="drow"><span class="dk">Pad</span><span class="dv">${esc(l.pad||'—')}</span></div>
     <div class="drow"><span class="dk">Site</span><span class="dv">${esc(l.location||'—')}</span></div>
     <div class="drow"><span class="dk">Mission type</span><span class="dv">${esc(l.type||'—')}</span></div>
-    <div class="drow"><span class="dk">Countdown</span><span class="dv">${esc(w.fuzzy?'—':rel(l.t))}</span></div>
+    <div class="drow"><span class="dk">${l.t<Date.now()?'Since launch':'Countdown'}</span><span class="dv">${esc(w.fuzzy?'—':rel(l.t))}</span></div>
   </div>`;
 }
 
 function renderList(){
   const list=filtered();
   if(!list.length){
-    $('list-body').innerHTML= launches.length ? `<div class="empty">No launches match these filters.</div>` : '';
+    $('list-body').innerHTML= mode==='past' && !past.length
+      ? (pastError ? '<div class="err">Recent launches unavailable right now. Try again in a few minutes.</div>'
+        : '<div class="sk"></div><div class="sk" style="width:80%"></div><div class="sk"></div><div class="sk" style="width:65%"></div>')
+      : schedulePool().length || launches.length ? `<div class="empty">No launches match these filters.</div>` : '';
     return;
   }
   const groups=new Map();
@@ -1073,6 +1137,7 @@ $('list-body').addEventListener('click',e=>{
 let qT; $('q').addEventListener('input',e=>{ clearTimeout(qT); qT=setTimeout(()=>{ filt.q=e.target.value; shown=150; renderList(); },120); });
 
 function revealInList(id){
+  setMode('up');
   filt.q=''; $('q').value=''; filt.region='All'; filt.status='all'; shown=Infinity; openId=id;
   renderChips(); renderList();
   if(innerWidth<=768) showTab('card-list');
@@ -1084,17 +1149,12 @@ function renderAll(){
   const pool=upcoming();
   $('s-up').textContent=meta.total || pool.length;
   $('s-week').textContent=pool.filter(l=>l.t-Date.now()<7*86400e3 && (!l.prec||FINE.has(l.prec)||l.prec==='DAY')).length;
-  const ago=Math.round((Date.now()-meta.updated)/60e3);
-  $('list-meta').innerHTML = `${pool.length}${meta.total&&meta.total>launches.length?` of ${meta.total}`:''} launches<br>`+
-    `${meta.source==='mirror'?'dev mirror · ':''}updated ${ago<1?'just now':ago+' min ago'}`+
-    (meta.partial?'<br><span style="color:var(--yellow)">rate limited — rest loading later</span>':'');
   setPill();
   renderNext();
-  renderChips();
-  renderList();
+  renderSchedule();
 }
 // keep relative times and "updated x min ago" fresh
-setInterval(()=>{ if(launches.length && !document.hidden) renderAll(); }, 60e3);
+setInterval(()=>{ if(launches.length && !document.hidden) renderAll(); else if(mode==='past' && !document.hidden) renderSchedule(); }, 60e3);
 
 /* ── INIT ──────────────────────────────────────────── */
 loadLaunches();
