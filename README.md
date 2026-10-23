@@ -37,7 +37,7 @@ python3 -m http.server 8765
 | --- | --- | --- |
 | Launches | [Launch Library 2](https://thespacedevs.com/llapi) (`ll.thespacedevs.com/2.2.0`, list mode) | Free tier: 15 requests/hour per IP |
 | Recent launches | Launch Library 2 `/launch/previous/` (last 30) | Fetched only when Recent is opened |
-| Launches (fallback) | `lldev.thespacedevs.com` dev mirror | No rate limit; data may lag slightly |
+| Launches (fallback) | `lldev.thespacedevs.com` dev mirror | No rate limit, but incomplete; used only with no saved data |
 | ISS position | [Where the ISS at?](https://wheretheiss.at/w/developer) | Polled every 5 s while the tab is visible |
 | Crew | [corquaid/international-space-station-APIs](https://github.com/corquaid/international-space-station-APIs) | Refreshed hourly |
 
@@ -45,10 +45,12 @@ python3 -m http.server 8765
 
 The 15-per-hour limit is per network (IP address), so every device on the same Wi-Fi shares it. To stay under it:
 
-- Only the first page (the next 100 launches) comes from production; later pages come from the dev mirror. A full refresh costs **one** request.
-- Results are cached in `localStorage` (`orbital.launches.v2`) for **30 minutes** and shared across tabs. Each browser and home-screen app has its own cache.
-- If the limit is hit partway through a refresh, the pages already fetched are merged with the cached data, and the rest is filled from the dev mirror.
-- If production is rate-limited and there's no fresh cache, the dashboard shows dev-mirror data and asks the API's `api-throttle` endpoint (free to call) when the quota frees up, then retries production at that moment.
+- The first page (the next 100 launches) is refreshed every **30 minutes**: one request.
+- The rest of the list (about 4 more pages) changes rarely and is refreshed every **6 hours**; in between it's reused from the cache.
+- Results are cached in `localStorage` (`orbital.launches.v2`) and shared across tabs. Each browser and home-screen app has its own cache.
+- If the limit is hit partway through a refresh, the pages already fetched are merged with the cached list.
+- If production is rate-limited, saved data is shown (`CACHED`). The dashboard asks the API's `api-throttle` endpoint (free to call) when the quota frees up and retries production at that moment.
+- The dev mirror is only used when there's no saved data at all: it isn't rate limited, but it's missing many launches.
 - Recent launches cost one extra request, made only the first time the Recent view is opened. They're cached separately (`orbital.past.v1`) for **2 hours** and fall back to the dev mirror if rate-limited.
 
 The header badge shows where the data came from:
@@ -60,7 +62,7 @@ The header badge shows where the data came from:
 | `MIRROR` | Data from the dev mirror |
 | `OFFLINE` | No launch data available |
 
-Tap the badge (↻) to force a fresh fetch of launches, ISS position and crew. If the production API is rate-limited at that moment, the refresh pulls from the dev mirror instead of keeping the stale cache.
+Tap the badge (↻) to force a fresh fetch of launches (one request), ISS position, crew and, when open, Recent launches.
 
 ## Stored preferences
 

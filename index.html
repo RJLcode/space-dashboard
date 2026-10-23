@@ -741,12 +741,11 @@ async function fetchCrew(){
 
 /* ── LAUNCH DATA ───────────────────────────────────── */
 // Launch Library 2 free tier allows 15 requests/hour per network, shared by every
-// device on it. Only the first page (the next 100 launches) comes from production;
-// the far-future tail comes from the dev mirror, so a refresh costs one request.
-// Results are cached and refreshed at most every 30 min.
-const LL_PROD='https://ll.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net&limit=100';
-const LL_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net&limit=100';
-const CACHE_KEY='orbital.launches.v2', TTL=30*60e3;
+// device on it. All ~480 upcoming launches take ~5 pages, so the list is cached:
+// the first page is refreshed every 30 min, the rest every 6 hours.
+const LL_PROD='https://ll.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net,id&limit=100';
+const LL_DEV ='https://lldev.thespacedevs.com/2.2.0/launch/upcoming/?mode=list&ordering=net,id&limit=100';
+const CACHE_KEY='orbital.launches.v2', TTL=30*60e3, TAIL_TTL=6*60*60e3;
 const FINE=new Set(['SEC','MIN','HR']);
 
 const COUNTRY_FIX = {
@@ -786,22 +785,20 @@ function normalize(l){
 
 let launches=[], meta={updated:0, source:'', total:0, partial:false};
 
-const toDev=u=>u.replace('//ll.thespacedevs.com','//lldev.thespacedevs.com');
-
-async function fetchAll(base, offset=0){
-  let url=offset?`${base}&offset=${offset}`:base, out=[], total=0;
+async function fetchAll(base, pages=Infinity){
+  let url=base, out=[], total=0;
   const progressive=!launches.length;
-  while(url){
+  while(url && pages-- > 0){
     const r=await fetch(url);
     if(r.status===429) { const e=new Error('rate'); e.partial=out; e.total=total; throw e; }
     if(!r.ok) { const e=new Error('http '+r.status); e.partial=out; e.total=total; throw e; }
     const d=await r.json();
     total=d.count; out=out.concat(d.results||[]);
-    url=d.next && toDev(d.next);
+    url=d.next;
     // paint progressively on the first uncached load
     if(progressive && url) { apply(out.map(normalize), {updated:Date.now(), source:'live', total, partial:!!url}); }
   }
-  return {results:out, total};
+  return {results:out, total, more:!!url};
 }
 
 function apply(list, m){
@@ -820,39 +817,38 @@ async function doLoadLaunches(force){
   // mirror-only data is kept to paint instantly, but production is retried every load
   if(!force && cached && cached.meta.source!=='mirror' && Date.now()-cached.meta.updated < TTL) { scheduleNext(TTL-(Date.now()-cached.meta.updated)); return; }
 
+  // The next 100 launches change often, so every refresh fetches that page (one
+  // request). The far-future tail rarely changes: it's reused from the cache and
+  // only re-fetched every TAIL_TTL. The dev mirror can't fill it, it's incomplete.
+  const tail=cached?.meta.source==='live' ? cached.results : [];
+  const tailFresh=tail.length && Date.now()-(cached.meta.tailUpdated||0) < TAIL_TTL;
+  let got=[], total=0, complete=false, err=null;
   try {
-    const {results,total}=await fetchAll(LL_PROD);
-    const m={updated:Date.now(), source:'live', total, partial:false};
-    const list=results.map(normalize);
+    const r=await fetchAll(LL_PROD, tailFresh ? 1 : Infinity);
+    got=r.results.map(normalize); total=r.total; complete=!r.more;
+  } catch(e){ err=e; got=(e.partial||[]).map(normalize); total=e.total; }
+
+  if(got.length){
+    let list=got;
+    if(!complete){
+      const lastT=got[got.length-1].t, ids=new Set(got.map(x=>x.id));
+      list=got.concat(tail.filter(x=>x.t>=lastT && !ids.has(x.id)));   // >=: many share a vague NET
+    }
+    const m={updated:Date.now(), source:'live', total,
+      tailUpdated: complete ? Date.now() : tail.length ? cached.meta.tailUpdated||0 : 0,
+      partial: !complete && !tail.length};
     store.set(CACHE_KEY,{results:list, meta:m});
     apply(list,m);
-    scheduleNext(TTL);
-  } catch(e){
-    const got=(e.partial||[]).map(normalize);
-    const old=cached?.results||[];
-    if(got.length){
-      // merge fresh pages with cached tail so the list stays complete
-      const lastT=got[got.length-1].t, ids=new Set(got.map(x=>x.id));
-      let merged=got.concat(old.filter(x=>x.t>lastT && !ids.has(x.id)));
-      if(merged.length<e.total){
-        // no cached tail: fetch the remaining pages from the dev mirror
-        try { const {results}=await fetchAll(LL_DEV, got.length);
-          merged=got.concat(results.map(normalize).filter(x=>!ids.has(x.id))); } catch {}
-      }
-      const m={updated:Date.now(), source:'live', total:e.total, partial: merged.length<e.total};
-      if(!m.partial) store.set(CACHE_KEY,{results:merged, meta:m});
-      apply(merged,m);
-    } else if(old.length && (force || cached.meta.source==='mirror') && await tryMirror()){
-      // rate-limited: fresh mirror data beats a stale cache
-    } else if(old.length){
-      apply(old,{...cached.meta, source:'cache', rateLimited:true});
-    } else if(!await tryMirror()){
-      // last resort: dev mirror (not rate limited, may lag a little)
-      showLaunchError();
-    }
-    // go back to production as soon as this network's hourly quota frees up
-    scheduleNext(await quotaWait() ?? 10*60e3);
+    if(!err) { scheduleNext(TTL); return; }
+  } else if(cached?.results?.length){
+    // rate-limited: a stale production list beats the incomplete mirror
+    apply(cached.results,{...cached.meta, source:cached.meta.source==='mirror'?'mirror':'cache', rateLimited:true});
+  } else if(!await tryMirror()){
+    // last resort: dev mirror (not rate limited, but missing launches)
+    showLaunchError();
   }
+  // go back to production as soon as this network's hourly quota frees up
+  scheduleNext(await quotaWait() ?? 10*60e3);
 }
 async function tryMirror(){
   try { const {results,total}=await fetchAll(LL_DEV);
@@ -869,7 +865,7 @@ async function tryMirror(){
 // ms until production accepts requests again (this endpoint doesn't use up the quota)
 async function quotaWait(){
   try { const d=await (await fetch('https://ll.thespacedevs.com/2.2.0/api-throttle/')).json();
-    return d.current_use<d.your_request_limit ? 60e3 : (d.next_use_secs+5)*1e3;
+    return d.current_use<d.your_request_limit ? 5*60e3 : (d.next_use_secs+5)*1e3;
   } catch { return null; }
 }
 
