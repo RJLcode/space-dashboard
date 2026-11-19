@@ -1,5 +1,7 @@
 # ORBITAL — Space Mission Dashboard
 
+**Current version: v1.0.1**
+
 A single-file dashboard for upcoming and recent rocket launches and the International Space Station. No build step, no dependencies. Open `index.html` in a browser or add it to your iPhone home screen as a web app.
 
 ## Features
@@ -14,6 +16,8 @@ A single-file dashboard for upcoming and recent rocket launches and the Internat
 - **ISS**: live position on a world map with about one orbit of ground track, plus latitude, longitude, altitude and velocity, updated every 5 seconds.
 - **People in space**: current crews grouped by station, with agency, role and days in orbit.
 - **Responsive**: two-column layout on desktop, stacked on tablet, and bottom tabs on phones.
+- **Home screen**: Add to Home Screen on iPhone gives an ORBITAL icon and opens full screen.
+- **Handles outages**: every request gives up after 8–20 seconds. If the ISS position can't be fetched three times in a row the ISS panel says so (and clears itself when it's back); if the crew list can't be refreshed the last one stays up and it retries in 5 minutes.
 
 ## Running locally
 
@@ -39,7 +43,7 @@ python3 -m http.server 8765
 | Recent launches | Launch Library 2 `/launch/previous/` (last 30) | Fetched only when Recent is opened |
 | Launches (fallback) | `lldev.thespacedevs.com` dev mirror | No rate limit, but incomplete; used only with no saved data |
 | ISS position | [Where the ISS at?](https://wheretheiss.at/w/developer) | Polled every 5 s while the tab is visible |
-| Crew | [corquaid/international-space-station-APIs](https://github.com/corquaid/international-space-station-APIs) | Refreshed hourly |
+| Crew | [corquaid/international-space-station-APIs](https://github.com/corquaid/international-space-station-APIs) | Refreshed hourly while the tab is visible (and on return if it's over an hour old); retried after 5 minutes on failure |
 
 ### Rate limiting and caching
 
@@ -71,6 +75,10 @@ The page also saves these in `localStorage`:
 - `orbital.isstrack`: the recent ISS ground track, so the trail survives reloads
 
 The All/USA, region and Upcoming/Recent choices are deliberately not saved, so every visit starts on **USA** for Next Launch, Upcoming and Recent, and on the Upcoming view. Switch to All or another country at any time.
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH`. Bug fixes and cosmetic changes are PATCH, new features are MINOR. Update the version line at the top of this README and the comment at the top of `index.html`, and add an entry to [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

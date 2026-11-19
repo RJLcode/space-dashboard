@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- ORBITAL v1.0.1 | 2026-11-19 -->
 <!--
   ORBITAL: Space Mission Dashboard
   Copyright (c) 2026 RJLcode (https://github.com/RJLcode). All rights reserved.
@@ -19,7 +20,12 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="ORBITAL">
 <meta name="theme-color" content="#03060f">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%2303060f'/><text y='120' x='90' text-anchor='middle' font-size='100'>🛸</text></svg>">
+<!-- iOS needs a PNG home screen icon (it ignores SVG ones) -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Upcoming and recent rocket launches, the ISS's live position, and who's in space.">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -65,7 +71,7 @@ addEventListener('orientationchange', () => setTimeout(appHeight, 300));
   --red:    #ff5a5a;
   --text:   #f2f6ff;
   --muted:  #a3b3d6;
-  --dim:    #7386b0;
+  --dim:    #8699c3;   /* 4.5:1 or better on every panel (WCAG AA) */
   --mono:   'DM Mono', monospace;
   --disp:   'Bebas Neue', sans-serif;
   --body:   'DM Sans', sans-serif;
@@ -381,6 +387,9 @@ header {
   border-radius:5px; height:12px; margin:7px 0; }
 @keyframes shim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
+:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation:none !important; transition:none !important; } }
+#iss-err[hidden] { display:none; }
 .err { font-family:var(--mono); font-size:11px; color:#ff8080; padding:10px 12px;
   background:rgba(255,60,60,0.06); border:1px solid rgba(255,60,60,0.18);
   border-radius:8px; line-height:1.6; }
@@ -583,6 +592,7 @@ header {
           <div class="iss-tile"><div class="iss-tl">Altitude</div><div class="iss-tv" id="iss-alt">—</div></div>
           <div class="iss-tile"><div class="iss-tl">Velocity</div><div class="iss-tv" id="iss-spd">—</div></div>
         </div>
+        <div class="err" id="iss-err" role="status" hidden>ISS position unavailable right now. Retrying every 5 seconds.</div>
         <div id="crew-list">
           <div class="sk" style="height:38px;border-radius:8px"></div>
           <div class="sk" style="height:38px;border-radius:8px;width:80%"></div>
@@ -704,12 +714,21 @@ const my = lt => (90-lt)*(MH/180);
   });
 })();
 
+/* ── FETCH ─────────────────────────────────────────── */
+// fetch() with a time limit, so a hung request fails (and shows its error) instead of waiting forever
+function tfetch(url, ms=12000){
+  const ctl=new AbortController(), timer=setTimeout(()=>ctl.abort(), ms);
+  return fetch(url, {signal:ctl.signal}).finally(()=>clearTimeout(timer));
+}
+
 /* ── ISS ───────────────────────────────────────────── */
 const track=store.get('orbital.isstrack')?.filter(p=>Date.now()-p[2]<95*60e3) || [];
+let issFails=0;
+function issFailed(){ if(++issFails>=3) $('iss-err').hidden=false; }   // a single missed poll isn't worth a message
 async function fetchISS(){
   try {
-    const r=await fetch('https://api.wheretheiss.at/v1/satellites/25544');
-    if(!r.ok) return;
+    const r=await tfetch('https://api.wheretheiss.at/v1/satellites/25544', 8000);
+    if(!r.ok) return issFailed();
     const d=await r.json();
     const KM_MI=0.621371;   // API reports km and km/h; display imperial
     const lat=+d.latitude, lon=+d.longitude, alt=+d.altitude*KM_MI, mph=+d.velocity*KM_MI;
@@ -717,6 +736,8 @@ async function fetchISS(){
     $('iss-lon').innerHTML=`${Math.abs(lon).toFixed(2)}<span class="iss-tu">°${lon>=0?'E':'W'}</span>`;
     $('iss-alt').innerHTML=`${alt.toFixed(1)}<span class="iss-tu">mi</span>`;
     $('iss-spd').innerHTML=`${(mph/3600).toFixed(2)}<span class="iss-tu">mi/s</span>`;
+    if(!isFinite(lat)||!isFinite(lon)) return issFailed();
+    issFails=0; $('iss-err').hidden=true;
     $('s-spd').textContent=Math.round(mph).toLocaleString();
 
     const x=mx(lon), y=my(lat);
@@ -727,14 +748,17 @@ async function fetchISS(){
     // break the line where it wraps around the antimeridian
     $('iss-track').setAttribute('d', track.map((p,i)=>
       `${i===0||Math.abs(p[0]-track[i-1][0])>MW/2?'M':'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(''));
-  } catch(e){}
+  } catch(e){ issFailed(); }
 }
 
+let crewAt=0, crewRetry=null;
 async function fetchCrew(){
+  clearTimeout(crewRetry);
   try {
-    const r=await fetch('https://corquaid.github.io/international-space-station-APIs/JSON/people-in-space.json');
+    const r=await tfetch('https://corquaid.github.io/international-space-station-APIs/JSON/people-in-space.json');
     if(!r.ok) throw 0;
     const d=await r.json();
+    crewAt=Date.now();
     $('s-crew').textContent=d.number ?? d.people.length;
     const bySc={};
     d.people.forEach(p=>{ const k=p.iss?'ISS':(p.spacecraft||'Other'); (bySc[k]=bySc[k]||[]).push(p); });
@@ -749,7 +773,9 @@ async function fetchCrew(){
         </div>`).join('')}
       </div>`).join('');
   } catch(e){
-    $('crew-list').innerHTML='<div class="err">Crew data unavailable right now.</div>';
+    // keep the last crew list if there is one; otherwise say so. Either way, try again in 5 minutes
+    if(!crewAt) $('crew-list').innerHTML='<div class="err">Crew data unavailable right now. Retrying in 5 minutes.</div>';
+    crewRetry=setTimeout(()=>{ if(!document.hidden) fetchCrew(); }, 5*60e3);
   }
 }
 
@@ -803,7 +829,7 @@ async function fetchAll(base, pages=Infinity){
   let url=base, out=[], total=0;
   const progressive=!launches.length;
   while(url && pages-- > 0){
-    const r=await fetch(url);
+    const r=await tfetch(url, 20000);
     if(r.status===429) { const e=new Error('rate'); e.partial=out; e.total=total; throw e; }
     if(!r.ok) { const e=new Error('http '+r.status); e.partial=out; e.total=total; throw e; }
     const d=await r.json();
@@ -878,7 +904,7 @@ async function tryMirror(){
 }
 // ms until production accepts requests again (this endpoint doesn't use up the quota)
 async function quotaWait(){
-  try { const d=await (await fetch('https://ll.thespacedevs.com/2.2.0/api-throttle/')).json();
+  try { const d=await (await tfetch('https://ll.thespacedevs.com/2.2.0/api-throttle/')).json();
     return d.current_use<d.your_request_limit ? 5*60e3 : (d.next_use_secs+5)*1e3;
   } catch { return null; }
 }
@@ -910,7 +936,7 @@ async function loadPast(force=false){
   pastLoading=true; pastError=false;
   for(const [url,source] of [[PAST_PROD,'live'],[PAST_DEV,'mirror']]){
     try {
-      const r=await fetch(url);
+      const r=await tfetch(url, 20000);
       if(!r.ok) continue;
       past=((await r.json()).results||[]).map(normalize);
       pastMeta={updated:Date.now(), source};
@@ -1193,8 +1219,8 @@ loadLaunches();
 fetchISS();
 fetchCrew();
 setInterval(()=>{ if(!document.hidden) fetchISS(); }, 5000);
-setInterval(fetchCrew, 60*60e3);
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ fetchISS(); const c=store.get(CACHE_KEY); if(!c||Date.now()-c.meta.updated>TTL) loadLaunches(); } });
+setInterval(()=>{ if(!document.hidden) fetchCrew(); }, 60*60e3);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ fetchISS(); if(Date.now()-crewAt>60*60e3) fetchCrew(); const c=store.get(CACHE_KEY); if(!c||Date.now()-c.meta.updated>TTL) loadLaunches(); } });
 </script>
 </body>
 </html>

@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+*.log
+
+# Local environment / temp files
+*.tmp
+*.bak
+*.orig
+
+# Node (if ever added)
+node_modules/
+npm-debug.log*
+
+# Python (if ever used for data scripts)
+__pycache__/
+*.py[cod]
+.env
+
+# Local preview config
+.claude/launch.json
+
+# Claude Code local settings and worktrees
+.claude/settings.local.json
+.claude/worktrees/
